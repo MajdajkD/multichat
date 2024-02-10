@@ -1,0 +1,83 @@
+﻿@page "/"
+
+
+<ul class="nav nav-tabs">
+  <li class="nav-item">
+    <button class="nav-link @(state== pageState.Home? "active" : "")" @onclick=@(()=> {state= pageState.Home;})>Home</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link @(state== pageState.AddConnection? "active" : "")" @onclick=@(()=> {state= pageState.AddConnection;})>Add Connection</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link @(state== pageState.Settings? "active" : "")" @onclick=@(()=> {state= pageState.Settings;})>Settings</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link @(state== pageState.Chat? "active" : "")" @onclick=@(()=> {state= pageState.Chat;})>Live Chat</button>
+  </li>
+</ul>
+
+@if (state == pageState.AddConnection)
+{
+  <AddService FinishCallback=AddConnection></AddService>
+}
+else if(state == pageState.Home)
+{
+  <Dashboard Config=config></Dashboard>
+}
+else if (state == pageState.Settings)
+{
+  <Settings Config=config></Settings>
+}
+else if (state == pageState.Chat)
+{
+  <ChatRoll Config=config></ChatRoll>
+}
+
+@inject LocalStorageJsInterop ls
+@code {
+
+  private Config config = new();
+  private pageState state = pageState.Home;
+
+  enum pageState
+  {
+    Home = 0,
+    AddConnection = 1,
+    Settings = 2,
+    Chat = 3
+  }
+
+  protected override async Task OnInitializedAsync()
+  {
+    var savedConfig = await ls.read("config");
+    if(!string.IsNullOrEmpty(savedConfig))
+    {
+      try
+      {
+        config = JsonSerializer.Deserialize<Config>(savedConfig) ?? new Config();
+      }
+      catch(Exception ex)
+      {
+        Console.WriteLine("Could not load saved config: " + ex.Message);
+      }
+    }
+  }
+
+  private async Task AddConnection(Connection? connection)
+  {
+    if(connection != null)
+    {
+      config.Connections.Add(connection);
+    }
+    state = pageState.Home;
+
+    await SaveConfig();
+  }
+
+
+  private async Task SaveConfig()
+  {
+    var saveConfig = JsonSerializer.Serialize(config);
+    await ls.save("config", saveConfig);
+  }
+}

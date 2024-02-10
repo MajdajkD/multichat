@@ -1,0 +1,120 @@
+﻿
+<style>
+  /* width */
+  ::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  /* Handle */
+  ::-webkit-scrollbar-thumb {
+    background: #0b5ed7;
+    border-radius: 2px;
+  }
+
+    /* Handle on hover */
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0a58ca;
+    }
+</style>
+
+<div class="m-3">
+  <button class="btn btn-primary mt-1" @onclick=ConnectAll style="z-index:1005; position:relative;">Connect</button>
+
+  <div class="p-5" id="chatbox"
+       style="position: absolute; bottom:32px; overflow-y: scroll; overflow-x:hidden; max-height:85vh; width:95%; color: @($"#{Config.TextColor}"); background-color:@($"#{Config.BackgroundColor}"); border: solid 3px @($"#{Config.BorderColor}"); border-radius: 5px; word-break: break-word;">
+    @foreach (var chm in messages)
+    {
+      var color = ((chm.User.GetHashCode() % 0x1000000) | 0x555555) & 0xEEEEEE;
+
+      <div class="row mb-1 align-middle">
+        <div class="col-4 text-end" style="color:@(Config.RandomUserColors ? $"#{color:X6}" : "efeff1")">
+          @if (chm.Service == StreamService.Twitch)
+          {
+            <img src="twitch.png" height="16" style="margin-right:5px;" />
+          }
+          else if (chm.Service == StreamService.YouTube)
+          {
+            <img src="yt.png" height="16" style="margin-right:5px;" />
+          }
+          else if (chm.Service == StreamService.Discord)
+          {
+            <img src="discord.png" height="16" style="margin-right:5px;" />
+          }
+
+          <b> @(chm.User)</b>
+        </div>
+        <div class="col-8">
+          @chm.Message
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+@implements IDisposable
+@inject IJSRuntime JS
+@code {
+
+  private List<ChatMessage> messages = new();
+  private List<IStreamSubscriber> readers = new();
+
+  [Parameter]
+  public Config Config { get; set; }
+
+  bool showSettings = true;
+
+  TwitchReader twitch;
+  YoutubeReader youtube;
+  DiscordReader discord;
+
+  CancellationTokenSource cts = new CancellationTokenSource();
+
+  protected override void OnInitialized()
+  {
+    base.OnInitialized();
+  }
+
+  public void ConnectAll()
+  {
+    foreach (var conn in Config.Connections)
+    {
+      switch (conn.Service)
+      {
+        case StreamService.Twitch:
+          var twReader = new TwitchReader(conn, cts.Token);
+          readers.Add(twReader);
+          twReader.OnNewMessage += HandleMessage;
+          twReader.Start();
+          break;
+        case StreamService.YouTube:
+          var ytReader = new YoutubeReader(conn, cts.Token);
+          readers.Add(ytReader);
+          ytReader.OnNewMessage += HandleMessage;
+          ytReader.Start();
+          break;
+        case StreamService.Discord:
+          var dcReader = new DiscordReader(conn, cts.Token);
+          readers.Add(dcReader);
+          dcReader.OnNewMessage += HandleMessage;
+          dcReader.Start();
+          break;
+      }
+    }
+  }
+
+  private async Task HandleMessage(ChatMessage message)
+  {
+    messages.Add(message);
+    StateHasChanged();
+    JS.InvokeVoidAsync("scrollDown");
+  }
+
+  public void Dispose()
+  {
+    foreach (var reader in readers)
+    {
+      reader.OnNewMessage -= HandleMessage;
+    }
+    cts.Cancel();
+  }
+}
